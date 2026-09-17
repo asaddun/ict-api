@@ -1,0 +1,61 @@
+version: '3.8'
+
+services:
+  # --- App ---
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: ict-api:latest
+    restart: always
+    container_name: ict-api
+    ports:
+      - "8000:8000"
+    volumes:
+      - .:/var/www/html
+    depends_on:
+      - mysql
+      - redis
+    environment:
+      - APP_ENV=production
+      - APP_KEY=${APP_KEY:-base64:$(openssl rand -base64 32 2>/dev/null | tr -dc 'a-zA-Z0-9' | head -c 32)}
+      - DB_CONNECTION=mysql
+      - DB_HOST=mysql
+      - DB_PORT=3306
+      - DB_DATABASE=${DB_DATABASE:-forge}
+      - DB_USERNAME=${DB_USERNAME:-forge}
+      - DB_PASSWORD=${DB_PASSWORD:-forge}
+      - CACHE_STORE=redis
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - REDIS_PASSWORD=${REDIS_PASSWORD:-}
+
+  # --- MySQL ---
+  mysql:
+    image: mysql:8.0
+    restart: always
+    container_name: ict-api-mysql
+    environment:
+      - MYSQL_ROOT_PASSWORD=${MYSQL_ROOT_PASSWORD:-forge}
+      - MYSQL_DATABASE=${DB_DATABASE:-forge}
+      - MYSQL_USER=${DB_USERNAME:-forge}
+      - MYSQL_PASSWORD=${DB_PASSWORD:-forge}
+      - TZ=Asia/Jakarta
+    volumes:
+      - mysql-data:/var/lib/mysql
+    ports:
+      - "3306:3306"
+
+  # --- Redis ---
+  redis:
+    image: redis:7-alpine
+    restart: always
+    container_name: ict-api-redis
+    volumes:
+      - redis-data:/data
+    ports:
+      - "6379:6379"
+
+volumes:
+  mysql-data:
+  redis-data:
