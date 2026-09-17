@@ -27,10 +27,11 @@
                             <div class="card text-center">
                                 <div class="card-header py-1">
                                     <div
-                                        onclick="window.open('http://api.adyawinsa.com:1880/sensor?id={{ $machine['A_ASSET_ID'] }}','mywindow');">
+                                        onclick="window.open('http://192.168.3.245:1880/sensor?id={{ $machine['A_ASSET_ID'] }}','mywindow');">
                                         {{ $machine['LINENO'] . ' [' . $machine['VALUE'] . ']' }}
                                     </div>
                                     <div id="version-{{ $machine['A_ASSET_ID'] }}" class="text-muted p-0">-</div>
+                                    <div id="ssid-{{ $machine['A_ASSET_ID'] }}" class="text-muted p-0">-</div>
                                 </div>
                                 <div class="card-body p-0 d-flex flex-row">
                                     <div class="col" id="status-{{ $machine['A_ASSET_ID'] }}"
@@ -53,6 +54,8 @@
                     <div class="card text-center">
                         <div class="card-header py-1">
                             1000
+                            <div id="version-1000" class="text-muted p-0">-</div>
+                            <div id="ssid-1000" class="text-muted p-0">-</div>
                         </div>
                         <div class="card-body p-0 d-flex flex-row">
                             <div class="col" id="status-1000">
@@ -94,7 +97,10 @@
 
             let activesMachine = {};
             let statusTimers = {};
-            const client = mqtt.connect('wss://api.adyawinsa.com:9443/');
+            const client = mqtt.connect('ws://192.168.3.6:9001/', {
+                username: 'esp8266',
+                password: 'esp8266-mqtt',
+            });
 
             client.on('connect', () => {
                 console.log("Connected!");
@@ -104,6 +110,9 @@
             client.on("message", (topic, message) => {
                 const data = JSON.parse(message.toString());
                 const id = data.id;
+                if (id === "1000") {
+                    console.log(data);
+                }
                 const action = data.action;
                 // const inject = data.inj;
                 const status = document.getElementById("status-" + id);
@@ -124,6 +133,9 @@
                 }
                 const versionEl = document.getElementById("version-" + id);
                 if (versionEl && data.version) versionEl.innerHTML = data.version;
+
+                const ssidEl = document.getElementById("ssid-" + id);
+                if (ssidEl && data.ssid) ssidEl.innerHTML = data.ssid;
 
                 // Reset timer jika sebelumnya ada
                 if (statusTimers[id]) clearTimeout(statusTimers[id]);
