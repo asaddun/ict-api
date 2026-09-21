@@ -1,8 +1,5 @@
-# syntax=docker/dockerfile:1
-
-
 # ============================================================
-# 1. Frontend build
+# 1. Frontend dependencies & build
 # ============================================================
 FROM node:22-alpine AS frontend
 
@@ -18,7 +15,7 @@ RUN npm run build
 
 
 # ============================================================
-# 2. PHP dependencies
+# 2. Composer dependencies
 # ============================================================
 FROM composer:2 AS composer
 
@@ -31,13 +28,14 @@ RUN composer install \
     --no-interaction \
     --no-progress \
     --prefer-dist \
-    --optimize-autoloader
+    --optimize-autoloader \
+    --no-scripts
 
 
 # ============================================================
-# 3. Production PHP-FPM
+# 3. Laravel PHP-FPM
 # ============================================================
-FROM php:8.4-fpm-alpine
+FROM php:8.3-fpm-alpine AS app
 
 WORKDIR /var/www/html
 
@@ -47,7 +45,7 @@ RUN apk add --no-cache \
     libzip \
     oniguruma
 
-# PHP extensions
+# PHP extension build dependencies
 RUN apk add --no-cache --virtual .build-deps \
         icu-dev \
         libzip-dev \
@@ -61,13 +59,13 @@ RUN apk add --no-cache --virtual .build-deps \
         zip \
     && apk del .build-deps
 
-# Copy Composer dependencies
+# Composer dependencies
 COPY --from=composer /app/vendor ./vendor
 
-# Copy Laravel application
+# Laravel application
 COPY . .
 
-# Copy compiled frontend assets
+# Frontend build
 COPY --from=frontend /app/public/build ./public/build
 
 # Laravel writable directories
@@ -84,3 +82,18 @@ RUN mkdir -p \
 EXPOSE 9000
 
 CMD ["php-fpm"]
+
+
+# ============================================================
+# 4. Laravel Nginx
+# ============================================================
+FROM nginx:alpine AS nginx
+
+COPY --from=app /var/www/html/public /var/www/html/public
+
+COPY docker/nginx/default.conf \
+     /etc/nginx/conf.d/default.conf
+
+EXPOSE 80
+
+CMD ["nginx", "-g", "daemon off;"]
