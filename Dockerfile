@@ -1,76 +1,86 @@
-# Stage 1: Build frontend assets
-FROM node:18-alpine AS build
+# syntax=docker/dockerfile:1
+
+
+# ============================================================
+# 1. Frontend build
+# ============================================================
+FROM node:22-alpine AS frontend
 
 WORKDIR /app
 
-# Copy package files and install dependencies
-COPY package.json package-lock.json* ./
-RUN npm install
+COPY package.json package-lock.json ./
 
-# Copy source files and build
+RUN npm ci
+
 COPY . .
+
 RUN npm run build
 
-# Stage 2: Production PHP
-FROM php:8.2-fpm-alpine AS production
 
-# Install system dependencies
-RUN apk add --no-cache \
-    unzip \
-    git \
-    libzip-dev \
-    libpng-dev \
-    libjpeg-turbo-dev \
-    libwebp-dev \
-    oniguruma-dev \
-    zip \
-    nodejs \
-    npm
+# ============================================================
+# 2. PHP dependencies
+# ============================================================
+FROM composer:2 AS composer
 
-# Install PHP extensions
-RUN docker-php-ext-install \
-    bcmath \
-    soap \
-    gd \
-    opcache \
-    mbstring \
-    pdo \
-    pdo_mysql \
-    zip
+WORKDIR /app
 
-# Clear Laravel caches and install dependencies
-WORKDIR /var/www/html
-COPY --from=build /app/public /var/www/html/public
-COPY --from=build /app/artisan /var/www/html/artisan
-COPY --from=build /app/bootstrap /var/www/html/bootstrap
-COPY --from=build /app/config /var/www/html/config
-COPY --from=build /app/database /var/www/html/database
-COPY --from=build /app/resources /var/www/html/resources
-COPY --from=build /app/routes /var/www/html/routes
-COPY --from=build /app/storage /var/www/html/storage
-
-# Copy composer files
 COPY composer.json composer.lock ./
 
-# Set timezone and locale
-RUN ln -s /usr/share/zoneinfo/Asia/Jakarta /etc/localtime \
-    && echo 'LANG=fr_FR.UTF-8' > /etc/locale.gen \
-    && locale-gen
+RUN composer install \
+    --no-dev \
+    --no-interaction \
+    --no-progress \
+    --prefer-dist \
+    --optimize-autoloader
 
-# Clear cache and install dependencies
-RUN composer clearcache || true \
-    && composer install --no-dev --optimize-autoloader --no-interaction
 
-# Copy source code
+# ============================================================
+# 3. Production PHP-FPM
+# ============================================================
+FROM php:8.4-fpm-alpine
+
+WORKDIR /var/www/html
+
+# System dependencies
+RUN apk add --no-cache \
+    icu-libs \
+    libzip \
+    oniguruma
+
+# PHP extensions
+RUN apk add --no-cache --virtual .build-deps \
+        icu-dev \
+        libzip-dev \
+        oniguruma-dev \
+    && docker-php-ext-install \
+        bcmath \
+        intl \
+        mbstring \
+        pdo_mysql \
+        pcntl \
+        zip \
+    && apk del .build-deps
+
+# Copy Composer dependencies
+COPY --from=composer /app/vendor ./vendor
+
+# Copy Laravel application
 COPY . .
-RUN composer dump-autoload --optimize --no-dev
 
-# Set permissions
-RUN mkdir -p storage/logs storage/framework/cache storage/framework/sessions storage/framework/testing storage/framework/views storage/framework/cache/data/storage/framework/cache/data \
-    && chmod -R 775 storage bootstrap/cache
+# Copy compiled frontend assets
+COPY --from=frontend /app/public/build ./public/build
 
-# Expose port 8000
-EXPOSE 8000
+# Laravel writable directories
+RUN mkdir -p \
+        storage/framework/cache \
+        storage/framework/sessions \
+        storage/framework/views \
+        storage/logs \
+        bootstrap/cache \
+    && chown -R www-data:www-data \
+        storage \
+        bootstrap/cache
 
-# Default command
-CMD ["php", "artisan", "serve", "--host=0.0.0.0", "--port=8000"]
+EXPOSE 9000
+
+CMD ["php-fpm"]
