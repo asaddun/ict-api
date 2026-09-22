@@ -30,6 +30,7 @@ services:
 
 networks:
   ict-api:
+    name: ict-api
     driver: bridge
   proxy:
     external: true
