@@ -97,7 +97,7 @@
 
             let activesMachine = {};
             let statusTimers = {};
-            const client = mqtt.connect('ws://192.168.3.6:9001/', {
+            const client = mqtt.connect('wss://api-mqtt.adyawinsa.com/', {
                 username: 'esp8266',
                 password: 'esp8266-mqtt',
             });
