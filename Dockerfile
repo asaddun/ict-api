@@ -17,9 +17,11 @@ RUN npm run build
 # ============================================================
 # 2. Composer dependencies
 # ============================================================
-FROM composer:2 AS composer
+FROM php:8.3-cli-alpine AS composer
 
 WORKDIR /app
+
+COPY --from=composer:2 /usr/bin/composer /usr/bin/composer
 
 COPY composer.json composer.lock ./
 
