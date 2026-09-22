@@ -42,8 +42,7 @@ WORKDIR /var/www/html
 # System dependencies
 RUN apk add --no-cache \
     icu-libs \
-    libzip \
-    oniguruma
+    libzip
 
 # PHP extension build dependencies
 RUN apk add --no-cache --virtual .build-deps \
